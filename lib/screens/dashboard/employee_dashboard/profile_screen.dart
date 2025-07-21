@@ -1,10 +1,47 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   final String email;
 
   const ProfileScreen({super.key, required this.email});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.2),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOut));
+
+    _fadeAnimation = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeIn));
+
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
 
   String formatDate(dynamic value) {
     if (value == null) return 'Not Available';
@@ -17,10 +54,11 @@ class ProfileScreen extends StatelessWidget {
         return "${s.substring(6, 8)}/${s.substring(4, 6)}/${s.substring(0, 4)}";
       }
     }
-    return value.toString();
+    return 'Invalid Date';
   }
 
-  Widget profileText(String title, String value) {
+  Widget profileText(String title, dynamic value) {
+    String displayValue = (value == null || value.toString().trim().isEmpty) ? 'Not Available' : value.toString();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4),
       child: Row(
@@ -36,7 +74,7 @@ class ProfileScreen extends StatelessWidget {
           Expanded(
             flex: 3,
             child: Text(
-              value,
+              displayValue,
               style: const TextStyle(color: Colors.grey),
             ),
           ),
@@ -57,7 +95,7 @@ class ProfileScreen extends StatelessWidget {
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('users')
-            .where('email', isEqualTo: email)
+            .where('email', isEqualTo: widget.email)
             .limit(1)
             .snapshots(),
         builder: (context, snapshot) {
@@ -69,60 +107,67 @@ class ProfileScreen extends StatelessWidget {
           }
 
           final userData = snapshot.data!.docs.first.data() as Map<String, dynamic>;
+
           return Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 500), // max width for large screens
-                child: Card(
-                  elevation: 6,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        CircleAvatar(
-                          radius: 45,
-                          backgroundImage: userData['profilePhotoUrl'] != null
-                              ? NetworkImage(userData['profilePhotoUrl'])
-                              : const AssetImage("assets/images/employee.png") as ImageProvider,
+                constraints: const BoxConstraints(maxWidth: 500),
+                child: SlideTransition(
+                  position: _slideAnimation,
+                  child: FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: Card(
+                      elevation: 6,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            CircleAvatar(
+                              radius: 45,
+                              backgroundImage: userData['profilePhotoUrl'] != null
+                                  ? NetworkImage(userData['profilePhotoUrl'])
+                                  : const AssetImage("assets/images/employee.png") as ImageProvider,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              userData['name'] ?? 'No Name',
+                              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              userData['email'] ?? 'No Email',
+                              style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+                            ),
+                            const SizedBox(height: 20),
+                            const Divider(thickness: 1.2),
+                            const SizedBox(height: 10),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  profileText("Phone", userData['phone']),
+                                  profileText("Gender", userData['gender']),
+                                  profileText("Role", userData['role']),
+                                  profileText("Designation", userData['designation']),
+                                  profileText("Department", userData['department']),
+                                  profileText("Address", userData['address']),
+                                  profileText("Status", userData['status']),
+                                  profileText("DOB", formatDate(userData['dob'])),
+                                  profileText("Joining Date", formatDate(userData['joiningDate'])),
+                                  profileText("Created By", userData['createdBy']),
+                                  profileText("Created Date", formatDate(userData['createdDate'])),
+                                  profileText("Updated By", userData['updatedBy']),
+                                  profileText("Update Date", formatDate(userData['updateDate'])),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 16),
-                        Text(
-                          userData['name'] ?? 'No Name',
-                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          userData['email'] ?? 'No Email',
-                          style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-                        ),
-                        const SizedBox(height: 20),
-                        const Divider(thickness: 1.2),
-                        const SizedBox(height: 10),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              profileText("Phone", userData['phone']?.toString() ?? "Not Available"),
-                              profileText("Gender", userData['gender'] ?? "Not Available"),
-                              profileText("Role", userData['role'] ?? "Not Available"),
-                              profileText("Designation", userData['designation'] ?? "Not Available"),
-                              profileText("Department", userData['department'] ?? "Not Available"),
-                              profileText("Address", userData['address'] ?? "Not Available"),
-                              profileText("Status", userData['status'] ?? "Not Available"),
-                              profileText("DOB", formatDate(userData['dob'])),
-                              profileText("Joining Date", formatDate(userData['joiningDate'])),
-                              profileText("Created By", userData['createdBy'] ?? "Not Available"),
-                              profileText("Created Date", formatDate(userData['createdDate'])),
-                              profileText("Updated By", userData['updatedBy'] ?? "Not Available"),
-                              profileText("Update Date", formatDate(userData['updateDate'])),
-                            ],
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),

@@ -16,20 +16,43 @@ import 'package:projects/widgets/hr_dashboard_calendar.dart';
 import 'package:projects/providers/theme_provider.dart';
 import 'package:projects/widgets/theme_toggle_switch.dart';
 import 'package:projects/screens/dashboard/hr_dashboard/admin_policy_screen.dart';
+import 'package:projects/widgets/weather_widget.dart';
 
 class HRDashboardScreen extends StatefulWidget {
   @override
   _HRDashboardScreenState createState() => _HRDashboardScreenState();
 }
 
-class _HRDashboardScreenState extends State<HRDashboardScreen> {
+class _HRDashboardScreenState extends State<HRDashboardScreen>
+    with TickerProviderStateMixin {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
+
+  late AnimationController _fabController;
+  late Animation<double> _fabAnimation;
 
   @override
   void initState() {
     super.initState();
     _selectedDay = _focusedDay;
+
+    _fabController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 600),
+    );
+
+    _fabAnimation = CurvedAnimation(
+      parent: _fabController,
+      curve: Curves.elasticOut,
+    );
+
+    _fabController.forward();
+  }
+
+  @override
+  void dispose() {
+    _fabController.dispose();
+    super.dispose();
   }
 
   final List<_DashboardItem> items = [
@@ -94,10 +117,30 @@ class _HRDashboardScreenState extends State<HRDashboardScreen> {
         elevation: 0,
       ),
       drawer: _buildDrawer(context),
+      floatingActionButton: ScaleTransition(
+        scale: _fabAnimation,
+        child: FloatingActionButton(
+          onPressed: () {
+            Navigator.pushNamed(context, '/chat');
+          },
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+          child: Image.asset(
+            'assets/images/bot.png',
+            height: 60,
+            width: 60,
+          ),
+        ),
+      ),
       body: Column(
         children: [
+          LiveWeatherCard(),
+
+          // 📅 Calendar Widget
           HRDashboardCalendar(),
           const SizedBox(height: 12),
+
+          // 🧩 Dashboard Item List
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),

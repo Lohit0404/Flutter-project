@@ -2,10 +2,45 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:projects/screens/dashboard/hr_dashboard/edit_profile_screen.dart';
 
-class ViewEmployeeProfileScreen extends StatelessWidget {
+class ViewEmployeeProfileScreen extends StatefulWidget {
   final String email;
 
   const ViewEmployeeProfileScreen({super.key, required this.email});
+
+  @override
+  State<ViewEmployeeProfileScreen> createState() => _ViewEmployeeProfileScreenState();
+}
+
+class _ViewEmployeeProfileScreenState extends State<ViewEmployeeProfileScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<Offset> _slideAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.2),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOut));
+    _fadeAnimation = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeIn));
+
+    _animationController.forward();
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
 
   String formatDate(dynamic value) {
     if (value == null) return 'Not Available';
@@ -37,7 +72,7 @@ class ViewEmployeeProfileScreen extends StatelessWidget {
           Expanded(
             flex: 3,
             child: Text(
-              value,
+              value.isEmpty ? 'Not Available' : value,
               style: const TextStyle(color: Colors.grey),
             ),
           ),
@@ -56,7 +91,7 @@ class ViewEmployeeProfileScreen extends StatelessWidget {
         centerTitle: true,
       ),
       body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance.collection('users').doc(email).snapshots(),
+        stream: FirebaseFirestore.instance.collection('users').doc(widget.email).snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -70,84 +105,83 @@ class ViewEmployeeProfileScreen extends StatelessWidget {
           return Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
-              child: Card(
-                elevation: 6,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      // Profile Picture
-                      CircleAvatar(
-                        radius: 45,
-                        backgroundImage: userData['profilePhotoUrl'] != null
-                            ? NetworkImage(userData['profilePhotoUrl'])
-                            : const AssetImage("assets/images/avatar.png") as ImageProvider,
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Name and Email
-                      Text(
-                        userData['name'] ?? 'No Name',
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        userData['email'] ?? 'No Email',
-                        style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Edit Profile Button
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => EditProfileScreen(email: email),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.edit),
-                        label: const Text("Edit Profile"),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blueAccent,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
+              child: SlideTransition(
+                position: _slideAnimation,
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: Card(
+                    elevation: 6,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          CircleAvatar(
+                            radius: 45,
+                            backgroundImage: userData['profilePhotoUrl'] != null
+                                ? NetworkImage(userData['profilePhotoUrl'])
+                                : const AssetImage("assets/images/avatar.png") as ImageProvider,
                           ),
-                          textStyle: const TextStyle(fontSize: 16,fontWeight: FontWeight.w600),
-                        ),
+                          const SizedBox(height: 16),
+                          Text(
+                            userData['name'] ?? 'No Name',
+                            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            userData['email'] ?? 'No Email',
+                            style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+                          ),
+                          const SizedBox(height: 20),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => EditProfileScreen(email: widget.email),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.edit),
+                            label: const Text("Edit Profile"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blueAccent,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                              textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          const Divider(thickness: 1.2),
+                          const SizedBox(height: 10),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                profileText("Phone", userData['phone']?.toString() ?? ""),
+                                profileText("Gender", userData['gender'] ?? ""),
+                                profileText("Role", userData['role'] ?? ""),
+                                profileText("Designation", userData['designation'] ?? ""),
+                                profileText("Department", userData['department'] ?? ""),
+                                profileText("Address", userData['address'] ?? ""),
+                                profileText("Status", userData['status'] ?? ""),
+                                profileText("DOB", formatDate(userData['dob'])),
+                                profileText("Joining Date", formatDate(userData['joiningDate'])),
+                                profileText("Created By", userData['createdBy'] ?? ""),
+                                profileText("Created Date", formatDate(userData['createdDate'])),
+                                profileText("Updated By", userData['updatedBy'] ?? ""),
+                                profileText("Update Date", formatDate(userData['updateDate'])),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 20),
-                      const Divider(thickness: 1.2),
-                      const SizedBox(height: 10),
-
-                      // Profile Information
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            profileText("Phone", userData['phone']?.toString() ?? "Not Available"),
-                            profileText("Gender", userData['gender'] ?? "Not Available"),
-                            profileText("Role", userData['role'] ?? "Not Available"),
-                            profileText("Designation", userData['designation'] ?? "Not Available"),
-                            profileText("Department", userData['department'] ?? "Not Available"),
-                            profileText("Address", userData['address'] ?? "Not Available"),
-                            profileText("Status", userData['status'] ?? "Not Available"),
-                            profileText("DOB", formatDate(userData['dob'])),
-                            profileText("Joining Date", formatDate(userData['joiningDate'])),
-                            profileText("Created By", userData['createdBy'] ?? "Not Available"),
-                            profileText("Created Date", formatDate(userData['createdDate'])),
-                            profileText("Updated By", userData['updatedBy'] ?? "Not Available"),
-                            profileText("Update Date", formatDate(userData['updateDate'])),
-                          ],
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),

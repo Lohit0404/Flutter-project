@@ -12,9 +12,11 @@ import 'package:projects/screens/login/login_screen.dart';
 import 'package:projects/screens/dashboard/hr_dashboard_screen.dart';
 import 'package:projects/screens/debug_fix_screen.dart';
 import 'package:projects/screens/dashboard/employee_dashboard/employee_scanner.dart'; // ✅ Your scanner screen
+import 'package:projects/chatbot/chat_screen.dart'; // ✅ Your chatbot screen';
 
 // Theme
 import 'package:projects/screens/AppTheme.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,9 +56,8 @@ class MyApp extends StatelessWidget {
         '/login': (context) =>  LoginScreen(),
         '/dashboard': (context) =>  HRDashboardScreen(),
         '/debug-fix': (context) => const DebugFixScreen(),
-
-        /// ✅ Route for QR Attendance Screen (Employee)
         '/qr-attendance': (context) => const ScanQRPage(),
+        '/chat': (context) =>  ChatScreen(),
       },
     );
   }

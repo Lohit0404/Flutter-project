@@ -43,7 +43,7 @@ class _EmployeeMasterScreenState extends State<EmployeeMasterScreen> {
     TextEditingController(text: data['department'] ?? '');
     final joiningDateController = TextEditingController(
       text: data['joiningDate'] != null
-          ? DateFormat('yyyy-MM-dd').format(data['joiningDate'].toDate())
+          ? DateFormat('yyyy-mm-dd').format(data['joiningDate'].toDate())
           : '',
     );
     final statusController = TextEditingController(text: data['status'] ?? '');
@@ -95,7 +95,7 @@ class _EmployeeMasterScreenState extends State<EmployeeMasterScreen> {
                         );
                         if (picked != null) {
                           joiningDateController.text =
-                              DateFormat('yyyy-MM-dd').format(picked);
+                              DateFormat('yyyy-mm-dd').format(picked);
                         }
                       },
                       child: AbsorbPointer(
@@ -129,7 +129,7 @@ class _EmployeeMasterScreenState extends State<EmployeeMasterScreen> {
                             'department': departmentController.text,
                             'joiningDate': joiningDateController.text.isNotEmpty
                                 ? Timestamp.fromDate(
-                                DateFormat('yyyy-MM-dd').parse(joiningDateController.text))
+                                DateFormat('yyyy-mm-dd').parse(joiningDateController.text))
                                 : null,
                             'status': statusController.text,
                             'gender': genderController.text,
@@ -177,51 +177,74 @@ class _EmployeeMasterScreenState extends State<EmployeeMasterScreen> {
   }
 
 
-  void _viewEmployeeProfile(DocumentSnapshot doc) {
+  void _viewEmployeeProfile(BuildContext context, DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
 
     String formatValue(dynamic value) {
       if (value == null || value.toString().trim().isEmpty) {
         return 'N/A';
       } else if (value is Timestamp) {
-        return DateFormat('yyyy-MM-dd – kk:mm').format(value.toDate());
+        return DateFormat('yyyy-mm-dd – kk:mm').format(value.toDate());
       } else {
         return value.toString();
       }
     }
 
+    TableRow _buildAlignedRow(String label, String value) {
+      return TableRow(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Text(
+              '$label:',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Text(value),
+          ),
+        ],
+      );
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Employee Details'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Employee Details',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         content: SingleChildScrollView(
           child: Table(
             columnWidths: const {
               0: IntrinsicColumnWidth(),
               1: FlexColumnWidth(),
             },
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             children: [
-              _buildTableRow('Name', formatValue(data['name'])),
-              _buildTableRow('Email', formatValue(data['email'])),
-              _buildTableRow('Role', formatValue(data['role'])),
-              _buildTableRow('Phone', formatValue(data['phoneNumber'])),
-              _buildTableRow('DOB', formatValue(data['dob'])),
-              _buildTableRow('Address', formatValue(data['address'])),
-              _buildTableRow('Designation', formatValue(data['designation'])),
-              _buildTableRow('Department', formatValue(data['department'])),
-              _buildTableRow('Joining Date', formatValue(data['joiningDate'])),
-              _buildTableRow('Status', formatValue(data['status'])),
-              _buildTableRow('Gender', formatValue(data['gender'])),
-              _buildTableRow('Created By', formatValue(data['createdBy'])),
-              _buildTableRow('Created Date', formatValue(data['createdDate'])),
-              _buildTableRow('Updated By', formatValue(data['updatedBy'])),
-              _buildTableRow('Updated Date', formatValue(data['updateDate'])),
+              _buildAlignedRow('Name', formatValue(data['name'])),
+              _buildAlignedRow('Email', formatValue(data['email'])),
+              _buildAlignedRow('Role', formatValue(data['role'])),
+              _buildAlignedRow('Phone', formatValue(data['phoneNumber'])),
+              _buildAlignedRow('DOB', formatValue(data['dob'])),
+              _buildAlignedRow('Address', formatValue(data['address'])),
+              _buildAlignedRow('Designation', formatValue(data['designation'])),
+              _buildAlignedRow('Department', formatValue(data['department'])),
+              _buildAlignedRow('Joining Date', formatValue(data['joiningDate'])),
+              _buildAlignedRow('Status', formatValue(data['status'])),
+              _buildAlignedRow('Gender', formatValue(data['gender'])),
+              _buildAlignedRow('Created By', formatValue(data['createdBy'])),
+              _buildAlignedRow('Created Date', formatValue(data['createdDate'])),
+              _buildAlignedRow('Updated By', formatValue(data['updatedBy'])),
+              _buildAlignedRow('Updated Date', formatValue(data['updateDate'])),
             ],
           ),
         ),
         actions: [
           TextButton(
-            child: const Text('Close',style: TextStyle(color:Colors.red)),
+            child: const Text('Close', style: TextStyle(color: Colors.red)),
             onPressed: () => Navigator.pop(context),
           ),
         ],
@@ -270,18 +293,27 @@ class _EmployeeMasterScreenState extends State<EmployeeMasterScreen> {
         content: const Text('Are you sure you want to delete this employee?'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          ElevatedButton(
-            child: const Text('Delete'),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+          TextButton(
             onPressed: () async {
               await _firestore.collection('users').doc(id).delete();
               Navigator.pop(ctx);
             },
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),
     );
   }
+
 
   @override
   void dispose() {
@@ -378,7 +410,7 @@ class _EmployeeMasterScreenState extends State<EmployeeMasterScreen> {
                             IconButton(
                               icon: const Icon(Icons.remove_red_eye,
                                   color: Colors.green),
-                              onPressed: () => _viewEmployeeProfile(doc),
+                              onPressed: () => _viewEmployeeProfile(context, doc),
                             ),
                             IconButton(
                               icon: const Icon(Icons.edit, color: Colors.blue),

@@ -5,8 +5,15 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
-class HRLeaveDashboardScreen extends StatelessWidget {
+class HRLeaveDashboardScreen extends StatefulWidget {
   const HRLeaveDashboardScreen({super.key});
+
+  @override
+  State<HRLeaveDashboardScreen> createState() => _HRLeaveDashboardScreenState();
+}
+
+class _HRLeaveDashboardScreenState extends State<HRLeaveDashboardScreen> {
+  String selectedFilter = 'All'; // All, Approved, Rejected, Pending
 
   String formatDate(Timestamp timestamp) {
     return DateFormat('dd MMM yyyy').format(timestamp.toDate());
@@ -137,86 +144,127 @@ class HRLeaveDashboardScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('leaves')
-            .orderBy('appliedOn', descending: true)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text('No leave requests found.'));
-          }
-
-          final leaves = snapshot.data!.docs;
-
-          return ListView.builder(
-            itemCount: leaves.length,
-            itemBuilder: (context, index) {
-              final leave = leaves[index];
-              final data = leave.data() as Map<String, dynamic>;
-
-              return Card(
-                margin: const EdgeInsets.all(10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+      body: Column(
+        children: [
+          // Filter buttons
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Wrap(
+              spacing: 10,
+              children: ['All', 'Approved', 'Rejected', 'Pending']
+                  .map((status) => ChoiceChip(
+                label: Text(status),
+                selected: selectedFilter == status,
+                onSelected: (_) {
+                  setState(() {
+                    selectedFilter = status;
+                  });
+                },
+                selectedColor: Theme.of(context).colorScheme.primary,
+                labelStyle: TextStyle(
+                  color: selectedFilter == status
+                      ? Colors.white
+                      : Colors.black,
                 ),
-                elevation: 4,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(data['email'] ?? 'No email',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16)),
-                      const SizedBox(height: 8),
-                      Text('Leave Type: ${data['leaveType']}'),
-                      Text('From: ${formatDate(data['startDate'])}'),
-                      Text('To: ${formatDate(data['endDate'])}'),
-                      Text('Reason: ${data['reason']}'),
-                      if (data['hrRemark'] != null)
-                        Text('HR Remark: ${data['hrRemark']}'),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Chip(
-                            label: Text(data['status']),
-                            backgroundColor: data['status'] == 'Pending'
-                                ? Colors.orange
-                                : data['status'] == 'Approved'
-                                ? Colors.green
-                                : Colors.red,
-                            labelStyle: const TextStyle(color: Colors.white),
-                          ),
-                          const Spacer(),
-                          if (data['status'] == 'Pending') ...[
-                            TextButton(
-                              onPressed: () => _showStatusDialog(
-                                  leave.id, 'Approved', context),
-                              child: const Text('Approve'),
-                              style: TextButton.styleFrom(
-                                  foregroundColor: Colors.green),
-                            ),
-                            TextButton(
-                              onPressed: () => _showStatusDialog(
-                                  leave.id, 'Rejected', context),
-                              child: const Text('Reject'),
-                              style: TextButton.styleFrom(
-                                  foregroundColor: Colors.red),
-                            ),
+              ))
+                  .toList(),
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('leaves')
+                  .orderBy('appliedOn', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(child: Text('No leave requests found.'));
+                }
+
+                List<QueryDocumentSnapshot> leaves = snapshot.data!.docs;
+
+                // Apply filtering
+                if (selectedFilter != 'All') {
+                  leaves = leaves.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    return data['status'] == selectedFilter;
+                  }).toList();
+                }
+
+                return ListView.builder(
+                  itemCount: leaves.length,
+                  itemBuilder: (context, index) {
+                    final leave = leaves[index];
+                    final data = leave.data() as Map<String, dynamic>;
+
+                    return Card(
+                      margin: const EdgeInsets.all(10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      elevation: 4,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(data['email'] ?? 'No email',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16)),
+                            const SizedBox(height: 8),
+                            Text('Leave Type: ${data['leaveType']}'),
+                            Text('From: ${formatDate(data['startDate'])}'),
+                            Text('To: ${formatDate(data['endDate'])}'),
+                            Text('Reason: ${data['reason']}'),
+                            if (data['hrRemark'] != null)
+                              Text('HR Remark: ${data['hrRemark']}',
+                              ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Chip(
+                                  label: Text(data['status']),
+                                  backgroundColor: data['status'] == 'Pending'
+                                      ? Colors.orange
+                                      : data['status'] == 'Approved'
+                                      ? Colors.green
+                                      : Colors.red,
+                                  labelStyle:
+                                  const TextStyle(color: Colors.white),
+                                ),
+                                const Spacer(),
+                                if (data['status'] == 'Pending') ...[
+                                  TextButton(
+                                    onPressed: () => _showStatusDialog(
+                                        leave.id, 'Approved', context),
+                                    child: const Text('Approve'),
+                                    style: TextButton.styleFrom(
+                                        foregroundColor: Colors.green),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => _showStatusDialog(
+                                        leave.id, 'Rejected', context),
+                                    child: const Text('Reject'),
+                                    style: TextButton.styleFrom(
+                                        foregroundColor: Colors.red),
+                                  ),
+                                ],
+                              ],
+                            )
                           ],
-                        ],
-                      )
-                    ],
-                  ),
-                ),
-              );
-            },
-          );
-        },
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

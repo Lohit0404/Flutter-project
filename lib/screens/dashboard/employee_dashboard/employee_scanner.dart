@@ -18,6 +18,13 @@ class _ScanQRPageState extends State<ScanQRPage> {
   String? qrAction;
   DateTime? qrGeneratedDate;
   String? userLocation;
+  double? officeLat;
+  double? officeLng;
+  double? userLat;
+  double? userLng;
+  double? distanceInMeters;
+  String? attendanceStatus;
+  double allowedRadius = 100;
 
   final MobileScannerController cameraController = MobileScannerController();
 
@@ -34,6 +41,8 @@ class _ScanQRPageState extends State<ScanQRPage> {
 
       final place = placemarks.first;
       setState(() {
+        userLat = position.latitude;
+        userLng = position.longitude;
         userLocation =
         '${place.street}, ${place.locality}, ${place.administrativeArea}';
       });
@@ -41,6 +50,48 @@ class _ScanQRPageState extends State<ScanQRPage> {
       setState(() {
         userLocation = "Unable to fetch location.";
       });
+    }
+  }
+
+  Future<void> _fetchOfficeLocation(String locationName) async {
+    final query = await FirebaseFirestore.instance
+        .collection('code_master')
+        .where('type', isEqualTo: 'Location')
+        .where('locationName', isEqualTo: locationName)
+        .where('active', isEqualTo: true)
+        .get();
+
+    if (query.docs.isNotEmpty) {
+      final officeData = query.docs.first.data();
+      officeLat = officeData['latitude'];
+      officeLng = officeData['longitude'];
+      allowedRadius = officeData['radius']?.toDouble() ?? 100;
+    } else {
+      throw Exception("Office not found or inactive: $locationName");
+    }
+  }
+
+  Future<void> _markAttendance() async {
+    if (userLat == null || userLng == null || officeLat == null || officeLng == null) return;
+
+    distanceInMeters =
+        Geolocator.distanceBetween(userLat!, userLng!, officeLat!, officeLng!);
+
+    if (distanceInMeters! <= allowedRadius) {
+      final now = DateTime.now();
+      await FirebaseFirestore.instance.collection('attendance').add({
+        'location': qrLocation,
+        'action': qrAction,
+        'markedAt': now,
+        'userLat': userLat,
+        'userLng': userLng,
+        'distance': distanceInMeters,
+        'status': 'Present',
+      });
+
+      setState(() => attendanceStatus = "✅ Attendance Marked (Within $allowedRadius m)");
+    } else {
+      setState(() => attendanceStatus = "❌ Out of Range (> $allowedRadius m), Not Marked");
     }
   }
 
@@ -61,13 +112,15 @@ class _ScanQRPageState extends State<ScanQRPage> {
       if (snapshot.docs.isNotEmpty) {
         final doc = snapshot.docs.first.data();
 
-        setState(() {
-          qrLocation = doc['locationName'];
-          qrAction = doc['action'];
-          qrGeneratedDate = (doc['generatedAt'] as Timestamp).toDate();
-        });
+        final locationName = doc['locationName'];
+        qrAction = doc['action'];
+        qrGeneratedDate = (doc['generatedAt'] as Timestamp).toDate();
+        qrLocation = locationName;
 
+        // 🔄 Dynamic office lookup (office, office2, office3, ...)
+        await _fetchOfficeLocation(locationName);
         await _getCurrentLocation();
+        await _markAttendance();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -78,12 +131,9 @@ class _ScanQRPageState extends State<ScanQRPage> {
         setState(() => isScanned = false);
       }
     } catch (e) {
-      debugPrint("Error during Firestore fetch: $e");
+      debugPrint("Error: $e");
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Error occurred"),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text("Error: ${e.toString()}"), backgroundColor: Colors.red),
       );
       setState(() => isScanned = false);
     }
@@ -126,36 +176,40 @@ class _ScanQRPageState extends State<ScanQRPage> {
             child: isScanned
                 ? Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "✅ QR Code Scanned",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "✅ QR Code Scanned",
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text("📍 QR Location: $qrLocation"),
-                  Text("🔄 Action: $qrAction"),
-                  Text("📅 Generated On: ${formatDate(qrGeneratedDate)}"),
-                  Text("📌 Your Location: $userLocation"),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        isScanned = false;
-                        qrLocation = null;
-                        qrAction = null;
-                        qrGeneratedDate = null;
-                        userLocation = null;
-                      });
-                      cameraController.start();
-                    },
-                    child: const Text("Scan Again"),
-                  ),
-                ],
+                    const SizedBox(height: 10),
+                    Text("📍 QR Location: $qrLocation"),
+                    Text("🔄 Action: $qrAction"),
+                    Text("📅 Generated On: ${formatDate(qrGeneratedDate)}"),
+                    Text("📌 Your Location: $userLocation"),
+                    Text("📏 Distance: ${distanceInMeters?.toStringAsFixed(2)} meters"),
+                    const SizedBox(height: 10),
+                    Text("📝 Status: $attendanceStatus"),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          isScanned = false;
+                          qrLocation = null;
+                          qrAction = null;
+                          qrGeneratedDate = null;
+                          userLocation = null;
+                          distanceInMeters = null;
+                          attendanceStatus = null;
+                        });
+                        cameraController.start();
+                      },
+                      child: const Text("Scan Again"),
+                    ),
+                  ],
+                ),
               ),
             )
                 : const Center(child: Text('Scan a QR Code to begin')),

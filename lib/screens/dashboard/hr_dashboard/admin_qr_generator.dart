@@ -1,8 +1,10 @@
+// e91ba751.dart (Generate QR Page)
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:geolocator/geolocator.dart';
 
 class GenerateQRPage extends StatefulWidget {
   @override
@@ -14,6 +16,8 @@ class _GenerateQRPageState extends State<GenerateQRPage> {
   String? selectedAction;
   String? securityKey;
   DateTime? generatedDate;
+  double? latitude;
+  double? longitude;
 
   final List<String> locations = ['Thiruvananthapuram', 'Erode'];
   final List<String> actions = ['Check In', 'Check Out'];
@@ -24,8 +28,24 @@ class _GenerateQRPageState extends State<GenerateQRPage> {
     return List.generate(length, (_) => chars[rand.nextInt(chars.length)]).join();
   }
 
+  Future<void> _getCurrentLocation() async {
+    final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high);
+    latitude = position.latitude;
+    longitude = position.longitude;
+  }
+
   Future<void> generateQR() async {
     if (selectedLocation != null && selectedAction != null) {
+      await _getCurrentLocation(); // get lat/lng first
+      if (latitude == null || longitude == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("❌ Failed to get location."),
+          backgroundColor: Colors.red,
+        ));
+        return;
+      }
+
       final key = generateSecurityKey(25);
       final timestamp = Timestamp.now();
       final doc = {
@@ -33,19 +53,20 @@ class _GenerateQRPageState extends State<GenerateQRPage> {
         'action': selectedAction,
         'securityKey': key,
         'generatedAt': timestamp,
+        'latitude': latitude,
+        'longitude': longitude,
       };
+
       await FirebaseFirestore.instance.collection('qr_codes').add(doc);
       setState(() {
         securityKey = key;
         generatedDate = timestamp.toDate();
       });
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("⚠️ Please select location and action"),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text("⚠️ Please select location and action"),
+        backgroundColor: Colors.orange,
+      ));
     }
   }
 
@@ -57,10 +78,7 @@ class _GenerateQRPageState extends State<GenerateQRPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Generate QR Code'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Generate QR Code'), centerTitle: true),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -70,15 +88,11 @@ class _GenerateQRPageState extends State<GenerateQRPage> {
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               value: selectedLocation,
-              decoration: InputDecoration(
-                border: OutlineInputBorder(),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-              ),
+              decoration: const InputDecoration(border: OutlineInputBorder()),
               hint: const Text('Choose a location'),
               onChanged: (value) => setState(() => selectedLocation = value),
               items: locations
-                  .map((loc) =>
-                  DropdownMenuItem(value: loc, child: Text(loc)))
+                  .map((loc) => DropdownMenuItem(value: loc, child: Text(loc)))
                   .toList(),
             ),
             const SizedBox(height: 20),
@@ -86,15 +100,11 @@ class _GenerateQRPageState extends State<GenerateQRPage> {
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
               value: selectedAction,
-              decoration: InputDecoration(
-                border: OutlineInputBorder(),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-              ),
+              decoration: const InputDecoration(border: OutlineInputBorder()),
               hint: const Text('Choose an action'),
               onChanged: (value) => setState(() => selectedAction = value),
               items: actions
-                  .map((act) =>
-                  DropdownMenuItem(value: act, child: Text(act)))
+                  .map((act) => DropdownMenuItem(value: act, child: Text(act)))
                   .toList(),
             ),
             const SizedBox(height: 30),
@@ -105,8 +115,6 @@ class _GenerateQRPageState extends State<GenerateQRPage> {
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 textStyle: const TextStyle(fontSize: 16),
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                foregroundColor: Theme.of(context).colorScheme.onPrimary,
               ),
             ),
             const SizedBox(height: 30),
@@ -114,21 +122,16 @@ class _GenerateQRPageState extends State<GenerateQRPage> {
               Card(
                 elevation: 4,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(12)),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     children: [
-                      const Text(
-                        "✅ QR Code Generated",
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
-                        ),
-                      ),
+                      const Text("✅ QR Code Generated",
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green)),
                       const SizedBox(height: 10),
                       Text("📍 Location: $selectedLocation"),
                       Text("🔄 Action: $selectedAction"),
@@ -139,15 +142,6 @@ class _GenerateQRPageState extends State<GenerateQRPage> {
                         size: 200,
                         backgroundColor: Colors.white,
                       ),
-                      // const SizedBox(height: 10),
-                      // SelectableText(
-                      //   "Key: $securityKey",
-                      //   style: const TextStyle(
-                      //     fontSize: 12,
-                      //     color: Colors.black54,
-                      //   ),
-                      //   textAlign: TextAlign.center,
-                      // ),
                     ],
                   ),
                 ),

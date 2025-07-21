@@ -43,7 +43,6 @@ class _AttendanceMasterScreenState extends State<AttendanceMasterScreen> {
       ),
       body: Column(
         children: [
-          // Top Date & Calendar
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Row(
@@ -72,7 +71,7 @@ class _AttendanceMasterScreenState extends State<AttendanceMasterScreen> {
             ),
           ),
 
-          // Attendance Summary Card
+          // Summary Card
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('attendance')
@@ -109,7 +108,6 @@ class _AttendanceMasterScreenState extends State<AttendanceMasterScreen> {
 
           const SizedBox(height: 8),
 
-          // Attendance Table
           Expanded(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -278,17 +276,15 @@ class _AttendanceMasterScreenState extends State<AttendanceMasterScreen> {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => GenerateQRPage()),
+            MaterialPageRoute(builder: (_) =>  GenerateQRPage()),
           );
         },
         icon: const Icon(Icons.qr_code),
         label: const Text("Generate QR"),
       ),
-
     );
   }
 
-  // PDF Generation
   Future<pw.Document> _generateAttendancePDF(List<QueryDocumentSnapshot> docs) async {
     final pdf = pw.Document();
     final df = DateFormat('dd-MM-yyyy');
@@ -316,7 +312,6 @@ class _AttendanceMasterScreenState extends State<AttendanceMasterScreen> {
     return pdf;
   }
 
-  // Summary Card Widget
   Widget _buildSummaryCard(String title, int count, Color color) {
     return Card(
       color: color.withOpacity(0.1),

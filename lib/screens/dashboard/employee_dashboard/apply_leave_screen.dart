@@ -11,15 +11,14 @@ class ApplyLeaveScreen extends StatefulWidget {
 
 class _ApplyLeaveScreenState extends State<ApplyLeaveScreen>
     with SingleTickerProviderStateMixin {
-  final _formKey = GlobalKey<FormState>();
-  final TextEditingController _reasonController = TextEditingController();
-
-  DateTime? _startDate;
-  DateTime? _endDate;
-  bool _isSubmitting = false;
-
+  /* ─── form controllers ─── */
+  final _formKey            = GlobalKey<FormState>();
+  final _reasonController   = TextEditingController();
+  DateTime? _startDate, _endDate;
   String? _selectedLeaveType;
-  final List<String> _leaveTypes = [
+  bool _isSubmitting        = false;
+
+  final _leaveTypes = [
     'Casual Leave',
     'Sick Leave',
     'Earned Leave',
@@ -27,190 +26,223 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen>
     'Others',
   ];
 
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
+  /* ─── animation ─── */
+  late final AnimationController _ctl;
+  late final Animation<double>  _scaleAnim;
+  late final List<Interval>     _stagger;   // one per form field
 
   @override
   void initState() {
     super.initState();
-    _animationController =
-        AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
-    _fadeAnimation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeIn,
-    );
-    _animationController.forward();
+    _ctl       = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _scaleAnim = CurvedAnimation(parent: _ctl, curve: Curves.easeOutBack);
+    _stagger   = List.generate(5, (i) => Interval(0.1 * i, 0.6 + 0.1 * i, curve: Curves.easeIn));
+    _ctl.forward();
   }
 
   @override
   void dispose() {
+    _ctl.dispose();
     _reasonController.dispose();
-    _animationController.dispose();
     super.dispose();
   }
 
-  Future<void> _pickDate(BuildContext context, bool isStart) async {
+  /* ─── pick date ─── */
+  Future<void> _pickDate(bool isStart) async {
     final picked = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
-      firstDate: DateTime(2024),
-      lastDate: DateTime(2030),
+      firstDate : DateTime(2024),
+      lastDate  : DateTime(2030),
     );
-    if (picked != null) {
-      setState(() {
-        if (isStart) {
-          _startDate = picked;
-        } else {
-          _endDate = picked;
-        }
-      });
-    }
+    if (picked != null) setState(() {
+      if (isStart) _startDate = picked; else _endDate = picked;
+    });
   }
 
-  Future<void> _submitLeaveRequest() async {
+  /* ─── firestore submit ─── */
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate() || _startDate == null || _endDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill all fields and select dates')),
       );
       return;
     }
-
     setState(() => _isSubmitting = true);
 
     try {
-      // Replace this with the logged-in user email if you're not using FirebaseAuth
-      const String email = 'mani@gmail.com';
+      const email = 'mani@gmail.com';               // TODO: replace with FirebaseAuth email
+      final userSnap = await FirebaseFirestore.instance
+          .collection('users').where('email', isEqualTo: email).limit(1).get();
+      if (userSnap.docs.isEmpty) throw Exception('User not found');
 
-      final userSnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where('email', isEqualTo: email)
-          .limit(1)
-          .get();
+      final userId = userSnap.docs.first.id;
+      final now    = DateTime.now();
 
-      if (userSnapshot.docs.isEmpty) {
-        throw Exception("User not found in Firestore");
-      }
-
-      final userId = userSnapshot.docs.first.id;
-
-      final now = DateTime.now();
-      final docRef = FirebaseFirestore.instance.collection('leaves').doc();
-
-      await docRef.set({
-        'leaveType': _selectedLeaveType,
-        'startDate': _startDate,
-        'endDate': _endDate,
-        'reason': _reasonController.text.trim(),
-        'status': 'Pending',
-        'appliedOn': now,
-        'createdOn': now,
-        'updatedOn': now,
-        'createdBy': userId,
-        'updatedBy': userId,
-        'email': 'mani@gmail.com',
-         'name': 'Mani',
+      await FirebaseFirestore.instance.collection('leaves').add({
+        'leaveType' : _selectedLeaveType,
+        'startDate' : _startDate,
+        'endDate'   : _endDate,
+        'reason'    : _reasonController.text.trim(),
+        'status'    : 'Pending',
+        'appliedOn' : now,
+        'createdOn' : now,
+        'updatedOn' : now,
+        'createdBy' : userId,
+        'updatedBy' : userId,
+        'email'     : email,
+        'name'      : 'Mani',
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Leave request submitted successfully')),
+        const SnackBar(content: Text('Leave request submitted')),
       );
 
       _formKey.currentState?.reset();
       _reasonController.clear();
       setState(() {
         _selectedLeaveType = null;
-        _startDate = null;
-        _endDate = null;
+        _startDate = _endDate = null;
       });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
+        SnackBar(content: Text('Error: $e')),
       );
     } finally {
       setState(() => _isSubmitting = false);
     }
   }
 
+  /* ─── animated field wrapper ─── */
+  Widget _animated(int index, Widget child) => AnimatedBuilder(
+    animation: _ctl,
+    builder: (_, __) => Transform.translate(
+      offset: Offset(0, 40 * (1 - _stagger[index].transform(_ctl.value))),
+      child : Opacity(
+        opacity: _stagger[index].transform(_ctl.value),
+        child  : child,
+      ),
+    ),
+  );
+
+  /* ─── build ─── */
   @override
   Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Apply Leave"),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+        title          : const Text('Apply Leave'),
+        backgroundColor: primary,
+        foregroundColor: Colors.white,
       ),
-      body: FadeTransition(
-        opacity: _fadeAnimation,
+      body: ScaleTransition(
+        scale: _scaleAnim,                 // whole card pops in
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Form(
-            key: _formKey,
-            child: ListView(
-              children: [
-                DropdownButtonFormField<String>(
-                  value: _selectedLeaveType,
-                  decoration: const InputDecoration(
-                    labelText: 'Leave Type',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: _leaveTypes
-                      .map((type) => DropdownMenuItem(value: type, child: Text(type)))
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedLeaveType = value;
-                    });
-                  },
-                  validator: (value) =>
-                  value == null || value.isEmpty ? 'Select leave type' : null,
+          padding: const EdgeInsets.all(20),
+          child: Card(
+            elevation: 8,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  children: [
+                    // 0️⃣ Leave type
+                    _animated(
+                      0,
+                      DropdownButtonFormField<String>(
+                        value: _selectedLeaveType,
+                        decoration: const InputDecoration(
+                          labelText: 'Leave Type',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _leaveTypes
+                            .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                            .toList(),
+                        onChanged: (v) => setState(() => _selectedLeaveType = v),
+                        validator: (v) =>
+                        v == null ? 'Select leave type' : null,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 1️⃣ Start date
+                    _animated(
+                      1,
+                      ListTile(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: const BorderSide(color: Colors.grey),
+                        ),
+                        title: Text(_startDate == null
+                            ? 'Select Start Date'
+                            : 'Start: ${DateFormat('dd MMM yyyy').format(_startDate!)}'),
+                        trailing: const Icon(Icons.calendar_today),
+                        onTap: () => _pickDate(true),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+
+                    // 2️⃣ End date
+                    _animated(
+                      2,
+                      ListTile(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: const BorderSide(color: Colors.grey),
+                        ),
+                        title: Text(_endDate == null
+                            ? 'Select End Date'
+                            : 'End: ${DateFormat('dd MMM yyyy').format(_endDate!)}'),
+                        trailing: const Icon(Icons.calendar_today),
+                        onTap: () => _pickDate(false),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 3️⃣ Reason
+                    _animated(
+                      3,
+                      TextFormField(
+                        controller: _reasonController,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Reason',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (v) =>
+                        (v == null || v.isEmpty) ? 'Enter reason' : null,
+                      ),
+                    ),
+                    const SizedBox(height: 30),
+
+                    // 4️⃣ Submit button
+                    _animated(
+                      4,
+                      ElevatedButton(
+                        onPressed: _isSubmitting ? null : _submit,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: _isSubmitting
+                            ? const SizedBox(
+                          height: 22,
+                          width: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 3,
+                            color: Colors.white,
+                          ),
+                        )
+                            : const Text('Submit Leave'),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                ListTile(
-                  shape: RoundedRectangleBorder(
-                      side: const BorderSide(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(8)),
-                  title: Text(_startDate == null
-                      ? 'Select Start Date'
-                      : 'Start Date: ${DateFormat('dd MMM yyyy').format(_startDate!)}'),
-                  trailing: const Icon(Icons.calendar_today),
-                  onTap: () => _pickDate(context, true),
-                ),
-                const SizedBox(height: 10),
-                ListTile(
-                  shape: RoundedRectangleBorder(
-                      side: const BorderSide(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(8)),
-                  title: Text(_endDate == null
-                      ? 'Select End Date'
-                      : 'End Date: ${DateFormat('dd MMM yyyy').format(_endDate!)}'),
-                  trailing: const Icon(Icons.calendar_today),
-                  onTap: () => _pickDate(context, false),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _reasonController,
-                  decoration: const InputDecoration(
-                    labelText: 'Reason',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                  validator: (value) =>
-                  value == null || value.isEmpty ? 'Enter reason' : null,
-                ),
-                const SizedBox(height: 30),
-                ElevatedButton(
-                  onPressed: _isSubmitting ? null : _submitLeaveRequest,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    textStyle: const TextStyle(fontSize: 16),
-                  ),
-                  child: _isSubmitting
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Submit Leave'),
-                ),
-              ],
+              ),
             ),
           ),
         ),

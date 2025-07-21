@@ -9,40 +9,42 @@ import 'package:projects/widgets/employee_calendar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:projects/widgets/theme_toggle_switch.dart';
 import 'package:projects/screens/dashboard/employee_dashboard/employee_policy_screen.dart';
+import 'package:projects/widgets/weather_widget.dart';
 
-class EmployeeDashboardScreen extends StatelessWidget {
+class EmployeeDashboardScreen extends StatefulWidget {
+  @override
+  _EmployeeDashboardScreenState createState() => _EmployeeDashboardScreenState();
+}
+
+class _EmployeeDashboardScreenState extends State<EmployeeDashboardScreen>
+    with TickerProviderStateMixin {
+  late AnimationController _fabController;
+  late Animation<double> _fabAnimation;
+
   final List<_DashboardItem> items = [
-    _DashboardItem(
-      "My Profile",
-      "View your profile information",
-      Icons.person,
-      ProfileScreen(email: "mani@gmail.com"),
-    ),
-    _DashboardItem(
-      "Apply Leave",
-      "Request leave with reason",
-      Icons.add_circle_outlined,
-      ApplyLeaveScreen(),
-    ),
-    _DashboardItem(
-      "My Attendance",
-      "Check your attendance records",
-      Icons.event_available,
-      MyAttendanceScreen(),
-    ),
-    _DashboardItem(
-      "Leave Request",
-      "Track your leave applications",
-      Icons.event_note,
-      EmployeeLeaveRequestsScreen(),
-    ),
-    _DashboardItem(
-      "Policy",
-      "Company policies and guidelines",
-      Icons.policy_rounded,
-      EmployeePolicyScreen(),
-    ),
+    _DashboardItem("My Profile", "View your profile information", Icons.person, ProfileScreen(email: "mani@gmail.com")),
+    _DashboardItem("Apply Leave", "Request leave with reason", Icons.add_circle_outlined, ApplyLeaveScreen()),
+    _DashboardItem("My Attendance", "Check your attendance records", Icons.event_available, MyAttendanceScreen()),
+    _DashboardItem("Leave Request", "Track your leave applications", Icons.event_note, EmployeeLeaveRequestsScreen()),
+    _DashboardItem("Policy", "Company policies and guidelines", Icons.policy_rounded, EmployeePolicyScreen()),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _fabController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _fabAnimation = CurvedAnimation(parent: _fabController, curve: Curves.elasticOut);
+    _fabController.forward();
+  }
+
+  @override
+  void dispose() {
+    _fabController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,9 +59,25 @@ class EmployeeDashboardScreen extends StatelessWidget {
         elevation: 0,
       ),
       drawer: _buildDrawer(context),
+      floatingActionButton: ScaleTransition(
+        scale: _fabAnimation,
+        child: FloatingActionButton(
+          onPressed: () {
+            Navigator.pushNamed(context, '/chat');
+          },
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
+          child: Image.asset(
+            'assets/images/bot.png',
+            height: 60,
+            width: 60,
+          ),
+        ),
+      ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          LiveWeatherCard(),
           EmployeeCalendar(),
           const SizedBox(height: 12),
           Expanded(
@@ -79,30 +97,16 @@ class EmployeeDashboardScreen extends StatelessWidget {
                         child: Transform.translate(
                           offset: Offset(0, 20 * (1 - value)),
                           child: Card(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             elevation: 4,
                             margin: const EdgeInsets.symmetric(vertical: 8),
                             color: isDarkMode ? Colors.grey[850] : const Color(0xFF3F51B5),
                             child: ListTile(
                               contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                               leading: Icon(item.icon, color: Colors.white, size: 30),
-                              title: Text(
-                                item.title,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              subtitle: Text(
-                                item.subtitle,
-                                style: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 13,
-                                ),
-                              ),
+                              title: Text(item.title,
+                                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+                              subtitle: Text(item.subtitle, style: const TextStyle(color: Colors.white70, fontSize: 13)),
                               trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 18, color: Colors.white),
                               onTap: () {
                                 Navigator.push(context, _createRoute(item.screen));
@@ -129,14 +133,8 @@ class EmployeeDashboardScreen extends StatelessWidget {
         const begin = Offset(1.0, 0.0);
         const end = Offset.zero;
         const curve = Curves.easeInOut;
-
         final tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-        final offsetAnimation = animation.drive(tween);
-
-        return SlideTransition(
-          position: offsetAnimation,
-          child: child,
-        );
+        return SlideTransition(position: animation.drive(tween), child: child);
       },
     );
   }
@@ -204,14 +202,8 @@ class EmployeeDashboardScreen extends StatelessWidget {
                               const begin = Offset(-1.0, 0.0);
                               const end = Offset.zero;
                               const curve = Curves.easeInOut;
-
                               final tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-                              final offsetAnimation = animation.drive(tween);
-
-                              return SlideTransition(
-                                position: offsetAnimation,
-                                child: child,
-                              );
+                              return SlideTransition(position: animation.drive(tween), child: child);
                             },
                           ),
                               (route) => false,

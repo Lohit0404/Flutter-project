@@ -19,7 +19,7 @@ class _EmployeePolicyScreenState extends State<EmployeePolicyScreen> with Ticker
     super.initState();
     _listAnimationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 1000),
     );
   }
 
